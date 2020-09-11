@@ -19,6 +19,7 @@ __internal_disable_timer_in_integration_test = []
 libtock_core = { path = "core" }
 libtock_codegen = { path = "codegen" }
 futures = { version = "0.3.1", default-features = false, features = ["unstable", "cfg-target-has-atomic"] }
+ctap2-authenticator = { git = "https://gitlab.com/ctap2-authenticator/ctap2-authenticator.git" }
 
 [dev-dependencies]
 corepack = { version = "0.4.0", default-features = false, features = ["alloc"] }
@@ -34,6 +35,11 @@ log = { git = "https://github.com/alistair23/log.git", branch = "alistair/atomic
 [[example]]
 name = "alloc_error"
 path = "examples-features/alloc_error.rs"
+required-features = ["alloc", "custom_alloc_error_handler"]
+
+[[example]]
+name = "ctap_features"
+path = "examples-features/ctap.rs"
 required-features = ["alloc", "custom_alloc_error_handler"]
 
 [[example]]
