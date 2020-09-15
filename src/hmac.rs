@@ -47,7 +47,7 @@ impl<CB: FnMut(usize, usize)> Consumer<CB> for HmacEventConsumer {
 }
 
 pub struct HmacKeyBuffer {
-    buffer: [u8; KEY_BUFFER_SIZE],
+    pub buffer: [u8; KEY_BUFFER_SIZE],
 }
 
 impl Default for HmacKeyBuffer {
