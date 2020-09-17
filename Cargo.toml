@@ -29,6 +29,8 @@ serde = { version = "=1.0.114", default-features = false, features = ["derive"] 
 [patch.crates-io]
 radium = { git = "https://github.com/mystor/radium.git", branch = "feature/3" }
 
+log = { git = "https://github.com/alistair23/log.git", branch = "alistair/atomics" }
+
 [[example]]
 name = "alloc_error"
 path = "examples-features/alloc_error.rs"
