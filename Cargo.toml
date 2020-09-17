@@ -26,6 +26,9 @@ corepack = { version = "0.4.0", default-features = false, features = ["alloc"] }
 # with the nightly toolchain used by libtock-rs.
 serde = { version = "=1.0.114", default-features = false, features = ["derive"] }
 
+[patch.crates-io]
+radium = { git = "https://github.com/mystor/radium.git", branch = "feature/3" }
+
 [[example]]
 name = "alloc_error"
 path = "examples-features/alloc_error.rs"
