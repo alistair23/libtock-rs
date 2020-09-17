@@ -4,20 +4,13 @@ pub use libtock_core::result::*;
 
 pub type TockResult<T> = Result<T, TockError>;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum TockError {
     Subscribe(SubscribeError),
     Command(CommandError),
     Allow(AllowError),
     Format,
     Other(OtherError),
-}
-
-#[cfg(not(any(target_arch = "arm", target_arch = "riscv32")))]
-impl core::fmt::Debug for TockError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "impl Debug only for test builds")
-    }
 }
 
 impl From<SubscribeError> for TockError {
@@ -44,7 +37,7 @@ impl From<fmt::Error> for TockError {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum OtherError {
     ButtonsDriverInvalidState,
     GpioDriverInvalidState,

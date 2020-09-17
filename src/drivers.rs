@@ -85,6 +85,7 @@ const DRIVERS: Drivers = Drivers {
     ninedof: NinedofDriver,
 };
 
+#[derive(Debug)]
 pub struct DriversAlreadyTakenError;
 
 impl From<DriversAlreadyTakenError> for TockError {

@@ -1,11 +1,11 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SubscribeError {
     pub driver_number: usize,
     pub subscribe_number: usize,
     pub return_code: isize,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CommandError {
     pub driver_number: usize,
     pub command_number: usize,
@@ -14,7 +14,7 @@ pub struct CommandError {
     pub return_code: isize,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct AllowError {
     pub driver_number: usize,
     pub allow_number: usize,
