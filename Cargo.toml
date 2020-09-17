@@ -20,6 +20,9 @@ libtock_core = { path = "core" }
 libtock_codegen = { path = "codegen" }
 futures = { version = "0.3.1", default-features = false, features = ["unstable", "cfg-target-has-atomic"] }
 ctap2-authenticator = { git = "https://gitlab.com/ctap2-authenticator/ctap2-authenticator.git" }
+p256 = { git = "https://github.com/RustCrypto/elliptic-curves.git", default-features = false, features = ["arithmetic", "ecdsa", "ecdsa-core"] }
+subtle = { version = "2.3.0", default-features = false, features = ["i128"] }
+generic-array = { version = "0.14.3" }
 
 [dev-dependencies]
 corepack = { version = "0.4.0", default-features = false, features = ["alloc"] }
