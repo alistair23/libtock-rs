@@ -49,6 +49,11 @@ path = "examples-features/ctap.rs"
 required-features = ["alloc", "custom_alloc_error_handler"]
 
 [[example]]
+name = "manticore"
+path = "examples-features/manticore.rs"
+required-features = ["alloc", "custom_alloc_error_handler"]
+
+[[example]]
 name = "ble_scanning"
 path = "examples-features/ble_scanning.rs"
 required-features = ["alloc"]
