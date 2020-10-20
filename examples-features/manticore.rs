@@ -9,8 +9,10 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::alloc::Layout;
 use core::time::Duration;
-use libtock::i2c::I2cMasterWriteBuffer;
-use libtock::println;
+use libmctp::smbus::MCTPSMBusContext;
+use libmctp::vendor_packets::VendorIDFormat;
+use libtock::i2c_master::{I2cBuffer, I2cDriverFactory};
+use libtock::{print, println};
 use libtock::result::TockResult;
 use libtock::syscalls;
 use manticore::crypto::rsa;
@@ -21,6 +23,23 @@ use manticore::net::{self, HostPort, HostRequest, HostResponse};
 use manticore::protocol::capabilities;
 use manticore::protocol::*;
 use manticore::server::pa_rot;
+
+libtock_core::stack_size! {0x800}
+
+// The address of this device
+const MY_ID: u8 = 0x23;
+const DEST_ID: u8 = 0x10;
+// Support vendor defined protocol 0x7E
+const MSG_TYPES: [u8; 1] = [0x7E];
+// Specify a PCI vendor ID that we support
+const VENDOR_IDS: [VendorIDFormat; 1] = [VendorIDFormat {
+    // PCI Vendor ID
+    format: 0x00,
+    // PCI VID
+    data: 0x1414,
+    // Extra data
+    numeric_value: 4,
+}];
 
 struct Identity {
     firmware_version: [u8; 32],
@@ -133,13 +152,14 @@ impl rsa::Engine for Engine {
     }
 }
 
-pub struct ManticoreHost {
+pub struct ManticoreHost<'a> {
+    ctx: MCTPSMBusContext<'a>,
     i2c: I2cDriverFactory,
 }
 
-impl ManticoreHost {
-    pub fn new(i2c: I2cDriverFactory) -> Self {
-        Self { i2c }
+impl<'a> ManticoreHost<'a> {
+    pub fn new(ctx: MCTPSMBusContext<'a>, i2c: I2cDriverFactory) -> Self {
+        Self { ctx, i2c }
     }
 
     /// Schedules a new request to be received, with the given request parts.
@@ -148,18 +168,150 @@ impl ManticoreHost {
     /// it will assert that the port is disconnected.
     pub fn request(&mut self, header: Header, message: &[u8]) {
         println!("ManticoreHost: request");
-        // header.write_bytes();
+
+        let i2c_driver;
+        match self.i2c.init_driver() {
+            Err(_) => {
+                panic!("I2C init error");
+            }
+            Ok(driver) => {
+                i2c_driver = driver;
+            }
+        }
+
+        println!("Setting callback");
+        let mut callback = |_, _| {
+            println!("I2C Request Callback");
+        };
+
+        let _subscription = i2c_driver.subscribe(&mut callback);
+
+        let mut buf: [u8; 32] = [0; 32];
+
+        println!("Creating the request");
+        let len = self.ctx
+            .get_request()
+            .vendor_defined(0xB, &VENDOR_IDS[0], &[0x00, header.command as u8, 0x00], &mut buf);
+
+            println!("buf: {:#x?}", buf);
+
+        println!("Creating write buffer");
+        let mut master_write_buffer = I2cBuffer::default();
+        // Skip the first byte, as that is the destination address
+        for (i, d) in buf[1..].iter().enumerate() {
+            master_write_buffer[i] = *d;
+        }
+        let _dest_buffer = i2c_driver.init_buffer(&mut master_write_buffer);
+        println!("  done");
+
+        let _ = i2c_driver.write(DEST_ID as usize, len.unwrap() - 1);
+
+        unsafe { syscalls::raw::yieldk() };
     }
 
     /// Gets the most recent response recieved until `request()` is called
     /// again.
-    pub fn response(&self) -> Option<(Header, &[u8])> {
+    pub fn response(&mut self, buf: &mut [u8]) -> Option<(Header)> {
         println!("ManticoreHost: response");
-        unimplemented!()
+
+        let i2c_driver;
+        match self.i2c.init_driver() {
+            Err(_) => {
+                panic!("I2c init error");
+            }
+            Ok(driver) => {
+                i2c_driver = driver;
+            }
+        }
+
+        println!("Setting callback");
+        let mut callback = |_, _| {
+            println!("I2C Response Callback");
+        };
+
+        let _subscription = i2c_driver.subscribe(&mut callback);
+
+        println!("Creating read buffer");
+        let mut master_write_buffer = I2cBuffer::default();
+        let dest_buffer;
+        match i2c_driver.init_buffer(&mut master_write_buffer) {
+            Err(_) => {
+                panic!("I2c buffer init error");
+            }
+            Ok(buffer) => {
+                dest_buffer = buffer;
+            }
+        }
+        println!("  done");
+
+        // Read 4 bytes for the SMBus header
+        let _ = i2c_driver.read(DEST_ID as usize, 4);
+
+        unsafe { syscalls::raw::yieldk() };
+
+        println!("Finished first read");
+
+        // Copy into a temp buffer
+        let mut temp_buffer = [0; libtock::hmac::DEST_BUFFER_SIZE];
+        dest_buffer.read_bytes(&mut temp_buffer[1..4]);
+
+        for d in temp_buffer[0..4].iter() {
+            println!("{:#x}", *d);
+        }
+
+
+        // Determine the full length
+        let bytes = self.ctx.get_length(&temp_buffer);
+
+        println!("Length: {:?}", bytes);
+
+        let bytes = bytes.unwrap();
+
+        // Read the full packet. The slave will re-send the data, so do
+        // a full read
+        let _ = i2c_driver.read(DEST_ID as usize, bytes);
+
+        unsafe { syscalls::raw::yieldk() };
+
+        println!("Finished second read");
+
+        // Copy in the full packet, with space for the destination address
+        dest_buffer.read_bytes(&mut temp_buffer[1..bytes]);
+
+        println!("  Copied data");
+
+        // Set the destination address as this isn't filled in the buffer from
+        // the kernel
+        temp_buffer[0] = MY_ID << 1;
+
+        // Print the buffer
+        for d in temp_buffer[0..bytes].iter() {
+            println!("{:#x}", *d);
+        }
+
+        // Decode the response
+        let (_msg_type, ret) = self.ctx.decode_packet(&temp_buffer[0..bytes]).unwrap();
+
+        println!("ret: {:?}", ret);
+
+        if ret[0] == 0x14 && ret[1] == 0x14 && ret[2] == 0 {
+            let header = Header {
+                // command: ret[3].into(),
+                command: CommandType::FirmwareVersion,
+                is_request: false,
+            };
+            for (i, d) in ret[4..].iter().enumerate() {
+                buf[i] = *d;
+            }
+
+            return Some(header);
+        }
+
+        None
     }
 }
 
-impl HostPort for ManticoreHost {
+impl<'a> HostPort for ManticoreHost<'a> {
     fn receive(&mut self) -> Result<&mut dyn HostRequest, net::Error> {
         println!("ManticoreHost: receive");
 
@@ -173,17 +325,17 @@ impl HostPort for ManticoreHost {
             }
         }
 
-        let mut slave_read_buffer = I2cSlaveReadBuffer::default();
-        let slave_read_buffer_ret = hmac_driver.init_key_buffer(&mut slave_read_buffer);
-        if slave_read_buffer_ret.is_err() {
-            panic!("I2C Slave read buffer init error");
-        }
+        // let mut slave_read_buffer = I2cSlaveReadBuffer::default();
+        // let slave_read_buffer_ret = hmac_driver.init_key_buffer(&mut slave_read_buffer);
+        // if slave_read_buffer_ret.is_err() {
+        // panic!("I2C Slave read buffer init error");
+        // }
 
         unimplemented!()
     }
 }
 
-impl HostRequest for ManticoreHost {
+impl<'a> HostRequest for ManticoreHost<'a> {
     fn header(&self) -> Result<Header, net::Error> {
         println!("ManticoreHost: header");
         unimplemented!()
@@ -200,7 +352,7 @@ impl HostRequest for ManticoreHost {
     }
 }
 
-impl HostResponse for ManticoreHost {
+impl<'a> HostResponse for ManticoreHost<'a> {
     fn sink(&mut self) -> Result<&mut dyn Write, net::Error> {
         println!("ManticoreHost: sink");
         unimplemented!()
@@ -259,28 +411,37 @@ async fn main() -> TockResult<()> {
         timeouts: TIMEOUTS,
     });
 
-    let mut port = ManticoreHost::new(drivers.i2c);
+    // Create the Manticore host
+    let mut port = ManticoreHost::new(
+        MCTPSMBusContext::new(MY_ID, &MSG_TYPES, &VENDOR_IDS),
+        drivers.i2c,
+    );
 
     let mut arena = [0; 64];
     let mut arena = BumpArena::new(&mut arena);
 
+    println!("Prepare to query firmware");
+    // Prepare a request to push into the host.
+    let header = Header {
+        command: CommandType::FirmwareVersion,
+        is_request: true,
+    };
+
+    port.request(header, &[0]);
+
+    // Cause a delay before the I2C read
+    for _i in 0..10000 {
+        print!(".");
+    }
+
     println!("Starting to process requests");
+    let mut resp = [0; 64];
 
-    server.process_request(&mut port, &mut arena).unwrap();
+    let _header = port.response(&mut resp).unwrap();
 
-    let (header, mut resp) = port.response().unwrap();
-
-    // let options = pa_rot::Options
-
-    // let mut pa_rot = pa_rot::PaRot::new(Non)
+    // server.process_request(&mut port, &mut arena).unwrap();
 
     // let i2c_driver = drivers.i2c.init_driver()?;
-
-    // // Prepare a request to push into the host.
-    // let header = Header {
-    //     command: CommandType::FirmwareVersion,
-    //     is_request: true,
-    // };
 
     // println!("Loading in request");
     // let mut request = I2cMasterWriteBuffer::default();

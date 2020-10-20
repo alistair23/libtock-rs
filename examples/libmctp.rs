@@ -98,7 +98,7 @@ async fn main() -> TockResult<()> {
     unsafe { syscalls::raw::yieldk() };
 
     // Copy in the full packet, with space for the destination address
-    dest_buffer.read_bytes(&mut temp_buffer[1..bytes-1]);
+    dest_buffer.read_bytes(&mut temp_buffer[1..bytes - 1]);
 
     // Set the destination address as this isn't filled in the buffer from
     // the kernel
@@ -107,9 +107,7 @@ async fn main() -> TockResult<()> {
     temp_buffer[bytes - 1] = 0x5e;
 
     // Print the buffer
-    for buf in temp_buffer[0..bytes]
-        .iter()
-    {
+    for buf in temp_buffer[0..bytes].iter() {
         println!("{:#x}", *buf);
     }
 

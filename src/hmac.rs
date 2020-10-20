@@ -11,7 +11,7 @@ const DRIVER_NUMBER: usize = 0x40003;
 
 pub const KEY_BUFFER_SIZE: usize = 32;
 pub const DATA_BUFFER_SIZE: usize = 256;
-pub const DEST_BUFFER_SIZE: usize = 32;
+pub const DEST_BUFFER_SIZE: usize = 64;
 
 mod command_nr {
     pub const SET_ALGORITHM: usize = 0;
