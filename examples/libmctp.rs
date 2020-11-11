@@ -4,7 +4,7 @@ use libmctp::smbus::{MCTPSMBusContext, VendorIDFormat};
 use libtock::i2c_master::I2cBuffer;
 use libtock::result::TockResult;
 use libtock::syscalls;
-use libtock::println;
+use libtock::{print, println};
 
 libtock_core::stack_size! {0x800}
 
@@ -74,6 +74,11 @@ async fn main() -> TockResult<()> {
 
     unsafe { syscalls::raw::yieldk() };
 
+    // Cause a delay before the I2C read
+    for _i in 0..10000 {
+        print!(".");
+    }
+
     // Read 4 bytes for the SMBus header
     let _ = i2c_driver.read(DEST_ID as usize, 4);
 
@@ -98,6 +103,19 @@ async fn main() -> TockResult<()> {
     // Set the destination address as this isn't filled in the buffer from
     // the kernel
     temp_buffer[0] = DEST_ID << 1;
+    // HACK: Set the PEC as Cerebus doesn't
+    temp_buffer[bytes - 1] = 0x5e;
+
+    // Print the buffer
+    for buf in temp_buffer[0..bytes]
+        .iter()
+    {
+        println!("{:#x}", *buf);
+    }
+
+    for _i in 0..100 {
+        print!(".");
+    }
 
     // Decode the response
     let ret = ctx.decode_packet(&temp_buffer[0..bytes]);
