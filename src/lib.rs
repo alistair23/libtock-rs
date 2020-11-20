@@ -15,6 +15,7 @@ pub mod gpio;
 pub mod hmac;
 pub mod i2c_master;
 pub mod i2c_master_slave;
+pub mod kv_store;
 pub mod leds;
 pub mod result;
 pub mod rng;
